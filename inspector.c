@@ -14,7 +14,7 @@
 
 /* Preprocessor Directives */
 #ifndef DEBUG
-#define DEBUG 1
+#define DEBUG 0
 #endif
 /**
  * Logging functionality. Set DEBUG to 1 to enable logging, 0 to disable.
@@ -118,6 +118,14 @@ int main(int argc, char *argv[])
         /* No args (or -p only). Enable all options: */
         options = all_on;
     }
+
+
+    int fd = open(procfs_loc, O_RDONLY);
+    if (fd == -1) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
 
     LOG("Options selected: %s%s%s%s\n",
             options.hardware ? "hardware " : "",
