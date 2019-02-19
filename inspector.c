@@ -133,21 +133,21 @@ int main(int argc, char *argv[])
     char host[80] = {0};
     strcpy(host, procfs_loc);
     strcat(host, "/sys/kernel/hostname");
-    
+
     //read the hostname
     char hostname[30];
     read(open(host, O_RDONLY), hostname, 10);
-    printf("hostname: %s\n", hostname);
-    
+    // printf("hostname: %s\n", hostname);
+
     //concatning kernel version location string
     char ver[80] = {0};
     strcpy(ver, procfs_loc);
     strcat(ver, "/version");
 
-    //read the kernel version 
+    //read the kernel version
     char version[40];
     read(open(ver, O_RDONLY), version, 40);
-    
+
     //token version string
     char *ver_tok = version;
     char *ker_version;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
         }
         tokens++;
     }
-    printf("version: %s\n", ker_version);
+    // printf("version: %s\n", ker_version);
 
 
 
@@ -170,17 +170,23 @@ int main(int argc, char *argv[])
             options.task_summary ? "task_summary" : "");
 
 
-    // printf("System Information\n");
-    // printf("------------------\n" );
-    // printf("Hostname: %s\n", );
-    // printf("Kernel Version: %s\n", );
+    printf("System Information\n");
+    printf("------------------\n" );
+    printf("Hostname: %s\n", hostname);
+    printf("Kernel Version: %s\n", ker_version);
     // printf("Uptime: %s\n", );
-    // printf("\n");
-    // printf("Hardware Information\n");
-    // printf("------------------\n" );
+    printf("\n");
+    printf("Hardware Information\n");
+    printf("------------------\n" );
     // printf("CPU Model: %s\n", );
     // printf("Processing Units: %s\n", );
     // printf("Load Average %s\n", );
+    printf("Task Information\n");
+    printf("------------------\n" );
+
+
+    // printf("PID|State|TaskName|User|Tasks\n");
+    printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
 
 
     return 0;
