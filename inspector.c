@@ -133,5 +133,10 @@ int main(int argc, char *argv[])
             options.task_list ? "task_list " : "",
             options.task_summary ? "task_summary" : "");
 
+    LOG("%s\n", options.system ? "System Information" : "");
+    fprintf(stdout, "System Information\n");
+    printf("System Information\n");
+
+
     return 0;
 }
