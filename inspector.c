@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
     //read the hostname
     char hostname[20];
     read(open(host, O_RDONLY), hostname, 20);
+    printf("hostname: %s\n", hostname);
     
     //concatning kernel version location string
     char ver[80] = {0};
@@ -157,7 +158,7 @@ int main(int argc, char *argv[])
         }
         tokens++;
     }
-    // printf("%s\n", ker_version);
+    printf("version: %s\n", ker_version);
 
 
 
