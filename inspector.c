@@ -135,8 +135,8 @@ int main(int argc, char *argv[])
     strcat(host, "/sys/kernel/hostname");
     
     //read the hostname
-    char hostname[20];
-    read(open(host, O_RDONLY), hostname, 20);
+    char hostname[30];
+    read(open(host, O_RDONLY), hostname, 10);
     printf("hostname: %s\n", hostname);
     
     //concatning kernel version location string
