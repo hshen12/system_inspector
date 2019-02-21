@@ -13,7 +13,6 @@
 #include <unistd.h>
 
 #define BUF_SZ 128
-#define STR_SZ 1024
 
 /* Preprocessor Directives */
 #ifndef DEBUG
@@ -36,7 +35,11 @@ char *next_token(char **str_ptr, const char *delim);
 void get_hostname(char* host_location, char* hostname);
 void get_kernel_version(char* version_location, char* version);
 void get_uptime(char* procfs_loc, char* uptime);
-
+void get_CPU_mode(char* procfs_loc, char* CPU_mode);
+int get_proc_unit(char* procfs_loc);
+void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* load_avg_15);
+int get_task_running(char* procfs_loc);
+int is_digit(char d_name[], int len);
 
 
 /* This struct is a collection of booleans that controls whether or not the
@@ -178,18 +181,17 @@ int main(int argc, char *argv[])
 
     int second = uptime_temp;
 
-    // char str_year[10];
-    // itoa(year, str_year, 10);
-    // printf("str year is %s\n", str_year);
-    // char str_day[10] = itoa(day);
-    // char str_hour[10] = itoa(hour);
-    // char str_min[10] = itoa(min);
-    // char str_second[10] = itoa(second);
+    char *CPU_mode = calloc(50, sizeof(char));
+    get_CPU_mode(procfs_loc, CPU_mode);
     
+    int proc_unit = get_proc_unit(procfs_loc);
+    
+    char *load_avg_1 = calloc(10, sizeof(char));
+    char *load_avg_5 = calloc(10, sizeof(char));
+    char *load_avg_15 = calloc(10, sizeof(char));
+    get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15); 
 
-
-
-    printf("uptime %d\n", uptime);
+    int task_running = get_task_running(procfs_loc);
 
     LOG("Options selected: %s%s%s%s\n",
             options.hardware ? "hardware " : "",
@@ -222,18 +224,210 @@ int main(int argc, char *argv[])
 
     printf("Hardware Information\n");
     printf("------------------\n" );
-    // printf("CPU Model: %s\n", );
-    // printf("Processing Units: %s\n", );
-    // printf("Load Average %s\n", );
+    printf("CPU Model: %s\n", CPU_mode);
+    printf("Processing Units: %d\n", proc_unit);
+    printf("Load Average (1/5/15 min) %s %s %s\n", load_avg_1, load_avg_5, load_avg_15);
+    printf("CPU Usage:\t\n");
+    printf("Memory Usage:\t\n");
     printf("\n");
 
     printf("Task Information\n");
     printf("------------------\n" );
+    printf("Tasks running: %d\n", task_running);
+    printf("Since boot:\n");
+    // printf("\tInterrupts: %s\n", );
+    // printf("\tContext Switches: %s\n", );
+    // printf("\tForks: %s\n", );
+    printf("\n");
     printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
 
 
     return 0;
 }
+
+int is_digit(char d_name[], int len) {
+    int i;
+    for(i = 0; i < len; i++) {
+        if(d_name[i]<48 || d_name[i]>57) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// int is_directory(char *file) {
+//     DIR *directory;
+//     if ((directory = opendir(file)) == NULL) {
+//         perror("opendir");
+//         return 1;
+//     }
+//     struct dirent *entry;
+//     while ((entry = readdir(directory)) != NULL) {
+//        return 0;
+//     }
+//     return 1;
+// }
+
+
+int get_task_running(char* procfs_loc) {
+
+    DIR *directory;
+    if ((directory = opendir(procfs_loc)) == NULL) {
+        perror("opendir");
+        return 1;
+    }
+    int result = 0;
+    struct dirent *entry;
+    while ((entry = readdir(directory)) != NULL) {
+        if((is_digit(entry->d_name, strlen(entry->d_name)) == 1) && (entry->d_type == 4)) {
+            result++;
+        }
+    }
+
+    closedir(directory);
+    return result;
+}
+
+void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* load_avg_15){
+
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/loadavg");
+
+    char one_line[BUF_SZ];
+    int length = 0;
+    char buf[1];
+    
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+
+    while((read_sz = read(fd, buf, 1)) >0) {
+            
+        one_line[length] = buf[0];
+        length++;
+        
+    }
+    one_line[length-1] = '\0';
+    close(fd);
+
+    char *load_tok = one_line;
+    char *temp;
+    int tokens = 0;
+    while((temp = next_token(&load_tok, " ")) != NULL){
+        if(tokens == 0) {
+            strcpy(load_avg_1, temp);
+        }
+
+        if (tokens == 1) {
+            strcpy(load_avg_5, temp);
+        }
+
+        if (tokens == 2) {
+            strcpy(load_avg_15, temp);
+            break;
+        }
+        tokens++;
+    }
+}
+
+int get_proc_unit(char* procfs_loc) {
+
+    int result = 0;
+    char *pre = "cpu";
+    char *stop = "intr";
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/stat");
+
+    char one_line[BUF_SZ];
+    int length = 0;
+    char buf[1];
+    
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+    while((read_sz = read(fd, buf, 1)) >0) {
+
+        if(buf[0] == '\n') {
+            //one line has been read
+            one_line[length] = '\0';
+            if(strncmp(pre, one_line, strlen(pre)) == 0) {
+                result++;
+            }
+
+            //stop reading when find "intr"
+            if(strncmp(stop, one_line, strlen(stop)) == 0) {
+                printf("before break: %s\n", one_line);
+                break;
+            }
+
+            one_line[0] = '\0';
+            length = 0;
+        } else {
+            if(strlen(one_line) >= 127) {
+                break;
+            }
+
+            //in the middle of the line
+            one_line[length] = buf[0];
+            length++;
+        }
+    }
+    close(fd);
+    return result-1;
+}
+
+
+
+void get_CPU_mode(char* procfs_loc, char* CPU_mode){
+    char *pre = "model name";
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/cpuinfo");
+
+    char one_line[BUF_SZ];
+    int length = 0;
+    char buf[1];
+    
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+
+    while((read_sz = read(fd, buf, 1)) >0) {
+
+        if(buf[0] == '\n') {
+            //one line has been read
+            one_line[length] = '\0';
+            int result =strncmp(pre, one_line, strlen(pre));
+            if(result == 0) {
+                strcpy(CPU_mode, one_line);
+                break;
+            }
+            one_line[0] = '\0';
+            length = 0;
+        } else {
+            //in the middle of the line
+            one_line[length] = buf[0];
+            length++;
+        }
+    }
+
+    close(fd);
+    
+    char *cpu_tok = CPU_mode;
+    char *cpu_mode;
+    int tokens = 0;
+    while((cpu_mode = next_token(&cpu_tok, "\t:")) != NULL){
+        if(tokens == 1) {
+            break;
+        }
+        tokens++;
+    }
+    strcpy(CPU_mode, cpu_mode+1);
+
+}
+
 
 
 void get_uptime(char* procfs_loc, char* uptime)
@@ -249,7 +443,7 @@ void get_uptime(char* procfs_loc, char* uptime)
     int fd = open(fp, O_RDONLY);
     int file_size = 0;
     while((read_sz = read(fd, buf, BUF_SZ)) >0) {
-        
+
         int i;
         for(i = 0; i < read_sz; ++i) {
             if(buf[i] == EOF) {
@@ -264,7 +458,6 @@ void get_uptime(char* procfs_loc, char* uptime)
     uptime[file_size-1] = '\0';
     close(fd);
     free(buf);
-    printf("uptime is %s\n", uptime);
 
     char *up_tok = uptime;
     char *up_time;
