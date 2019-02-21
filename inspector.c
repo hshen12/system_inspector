@@ -19,8 +19,6 @@
 #define DEBUG 1
 #endif
 
-// #define BUF_SZ 128
-
 /**
  * Logging functionality. Set DEBUG to 1 to enable logging, 0 to disable.
  */
@@ -40,7 +38,7 @@ int get_proc_unit(char* procfs_loc);
 void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* load_avg_15);
 int get_task_running(char* procfs_loc);
 int is_digit(char d_name[], int len);
-
+void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]);
 
 /* This struct is a collection of booleans that controls whether or not the
  * various sections of the output are enabled. */
@@ -193,6 +191,15 @@ int main(int argc, char *argv[])
 
     int task_running = get_task_running(procfs_loc);
 
+    char interrupts[20];
+    char c_switch[20];
+    char fork[20];
+    get_interrupts(procfs_loc, interrupts, c_switch, fork);
+
+    // int c_switch = get_c_switch(procfs_loc);
+
+    // int forks = get_forks(procfs_loc);
+
     LOG("Options selected: %s%s%s%s\n",
             options.hardware ? "hardware " : "",
             options.system ? "system " : "",
@@ -235,14 +242,102 @@ int main(int argc, char *argv[])
     printf("------------------\n" );
     printf("Tasks running: %d\n", task_running);
     printf("Since boot:\n");
-    // printf("\tInterrupts: %s\n", );
-    // printf("\tContext Switches: %s\n", );
-    // printf("\tForks: %s\n", );
+    printf("\tInterrupts: %s\n", interrupts);
+    printf("\tContext Switches: %s\n", c_switch);
+    printf("\tForks: %s\n", fork);
     printf("\n");
     printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
 
 
     return 0;
+}
+
+void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]) {
+
+    char *inter_pre = "intr";
+    char *c_switch_pre = "ctxt";
+    char *fork_pre = "processes";
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/stat");
+
+    char one_line[12000];
+    char inte_line[12000];
+    char c_switch_line[50];
+    char fork_line[50];
+    int length = 0;
+    char buf[1];
+    
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+    while((read_sz = read(fd, buf, 1)) >0) {
+
+        if(buf[0] == '\n') {
+            //one line has been read
+            one_line[length] = '\0';
+            if(strncmp(inter_pre, one_line, strlen(inter_pre)) == 0) {
+                strcpy(inte_line, one_line);
+            }
+
+            if(strncmp(c_switch_pre, one_line, strlen(c_switch_pre)) == 0) {
+                strcpy(c_switch_line, one_line);
+            }
+
+            if(strncmp(fork_pre, one_line, strlen(fork_pre)) == 0) {
+                strcpy(fork_line, one_line);
+            }
+
+            one_line[0] = '\0';
+            length = 0;
+        } else {
+            //in the middle of the line
+            one_line[length] = buf[0];
+            length++;
+        }
+
+    }
+    close(fd);
+
+    int i, inter_index;
+    for(i = 0; i < 12000; i++) {
+        if(inte_line[i] > 47 && inte_line[i] < 58) {
+            //is number
+            
+            interrupts[inter_index] = inte_line[i];
+            inter_index++;
+        }
+        if(inte_line[i] == 32 && inte_line[i-1] != 114) {
+            interrupts[inter_index] = '\0';
+            break;
+        }
+    }
+
+    int index;
+    for(i = 0; i < 50; i++) {
+        if(c_switch_line[i] > 47 && c_switch_line[i] < 58) {
+            
+            c_switch[index] = c_switch_line[i];
+            index++;
+        }
+        if(c_switch_line[i] == 0) {
+            c_switch[index] = '\0';
+            break;
+        }
+    }
+
+    index = 0;
+    for(i = 0; i < 50; i++) {
+        if(fork_line[i] > 47 && fork_line[i] < 58) {
+            
+            fork[index] = fork_line[i];
+            index++;
+        }
+         if(fork_line[i] == 0) {
+            fork[index] = '\0';
+            break;
+        }
+    }
 }
 
 int is_digit(char d_name[], int len) {
@@ -254,19 +349,6 @@ int is_digit(char d_name[], int len) {
     }
     return 1;
 }
-
-// int is_directory(char *file) {
-//     DIR *directory;
-//     if ((directory = opendir(file)) == NULL) {
-//         perror("opendir");
-//         return 1;
-//     }
-//     struct dirent *entry;
-//     while ((entry = readdir(directory)) != NULL) {
-//        return 0;
-//     }
-//     return 1;
-// }
 
 
 int get_task_running(char* procfs_loc) {
