@@ -12,10 +12,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define BUF_SZ 128
+#define STR_SZ 1024
+
 /* Preprocessor Directives */
 #ifndef DEBUG
 #define DEBUG 1
 #endif
+
+// #define BUF_SZ 128
+
 /**
  * Logging functionality. Set DEBUG to 1 to enable logging, 0 to disable.
  */
@@ -27,6 +33,10 @@
 /* Function prototypes */
 void print_usage(char *argv[]);
 char *next_token(char **str_ptr, const char *delim);
+void get_hostname(char* host_location, char* hostname);
+void get_kernel_version(char* version_location, char* version);
+void get_uptime(char* procfs_loc, char* uptime);
+
 
 
 /* This struct is a collection of booleans that controls whether or not the
@@ -128,40 +138,58 @@ int main(int argc, char *argv[])
         perror("open");
         return EXIT_FAILURE;
     }
-
-    //concatning host location string
-    char host[80] = {0};
-    strcpy(host, procfs_loc);
-    strcat(host, "/sys/kernel/hostname");
-
+    
     //read the hostname
-    char hostname[30];
-    read(open(host, O_RDONLY), hostname, 10);
-    // printf("hostname: %s\n", hostname);
-
-    //concatning kernel version location string
-    char ver[80] = {0};
-    strcpy(ver, procfs_loc);
-    strcat(ver, "/version");
+    char *hostname = calloc(40, sizeof(char));
+    get_hostname(procfs_loc, hostname);
 
     //read the kernel version
-    char version[40];
-    read(open(ver, O_RDONLY), version, 40);
+    char *version = calloc(1024, sizeof(char));
+    get_kernel_version(procfs_loc, version);
 
-    //token version string
-    char *ver_tok = version;
-    char *ker_version;
-    int tokens = 0;
-    while((ker_version = next_token(&ver_tok, " ")) != NULL){
-        if(tokens == 2) {
-            break;
-        }
-        tokens++;
+    char *temp = calloc(1024, sizeof(char));
+    get_uptime(procfs_loc, temp);
+    int uptime = atof(temp);
+    int uptime_temp = uptime;
+
+    int year = uptime_temp/31536000;
+    if(year > 0) {
+        // year+=year_temp;
+        uptime_temp-=year*31536000;
     }
-    // printf("version: %s\n", ker_version);
+
+    int day = uptime_temp/86400;
+    if(day > 0){
+        // day+=day_temp;
+        uptime_temp-=day*86400;
+    }
+
+    int hour = uptime_temp/3600;
+    if(hour > 0) {
+        // hour+=hour_temp;
+        uptime_temp-=hour*3600;
+    }
+
+    int min = uptime_temp/60;
+    if(min > 0) {
+        // min+=min_temp;
+        uptime_temp-=min*60;
+    }
+
+    int second = uptime_temp;
+
+    // char str_year[10];
+    // itoa(year, str_year, 10);
+    // printf("str year is %s\n", str_year);
+    // char str_day[10] = itoa(day);
+    // char str_hour[10] = itoa(hour);
+    // char str_min[10] = itoa(min);
+    // char str_second[10] = itoa(second);
+    
 
 
 
+    printf("uptime %d\n", uptime);
 
     LOG("Options selected: %s%s%s%s\n",
             options.hardware ? "hardware " : "",
@@ -173,23 +201,157 @@ int main(int argc, char *argv[])
     printf("System Information\n");
     printf("------------------\n" );
     printf("Hostname: %s\n", hostname);
-    printf("Kernel Version: %s\n", ker_version);
-    // printf("Uptime: %s\n", );
+    printf("Kernel Version: %s\n", version);
+    printf("Uptime: ");
+    if(year > 0) {
+        printf("%d years, ", year);
+    }
+    if(day > 0) {
+        printf("%d days, ", day);
+    }
+    if(hour > 0) {
+        printf("%d hours, ", hour);
+    }
+    if(min > 0) {
+        printf("%d minutes, ", min);
+    }
+    if(second > 0) {
+        printf("%d seconds", second);
+    }
     printf("\n");
+
     printf("Hardware Information\n");
     printf("------------------\n" );
     // printf("CPU Model: %s\n", );
     // printf("Processing Units: %s\n", );
     // printf("Load Average %s\n", );
+    printf("\n");
+
     printf("Task Information\n");
     printf("------------------\n" );
-
-
-    // printf("PID|State|TaskName|User|Tasks\n");
     printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
 
 
     return 0;
+}
+
+
+void get_uptime(char* procfs_loc, char* uptime)
+{
+
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/uptime");
+    
+    char *buf = calloc(BUF_SZ, sizeof(char));
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+    int file_size = 0;
+    while((read_sz = read(fd, buf, BUF_SZ)) >0) {
+        
+        int i;
+        for(i = 0; i < read_sz; ++i) {
+            if(buf[i] == EOF) {
+                file_size+=i;
+                strncat(uptime, buf, i);
+            }
+        }
+        strncat(uptime, buf, read_sz);
+        file_size+=read_sz;
+    }
+
+    uptime[file_size-1] = '\0';
+    close(fd);
+    free(buf);
+    printf("uptime is %s\n", uptime);
+
+    char *up_tok = uptime;
+    char *up_time;
+    int tokens = 0;
+    while((up_time = next_token(&up_tok, " ")) != NULL){
+        if(tokens == 0) {
+            break;
+        }
+        tokens++;
+    }
+    
+    strcpy(uptime, up_time);
+}
+
+
+void get_kernel_version(char* procfs_loc, char* version)
+{
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/version");
+    
+    char *buf = calloc(BUF_SZ, sizeof(char));
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+    int file_size = 0;
+    while((read_sz = read(fd, buf, BUF_SZ)) >0) {
+        
+        int i;
+        for(i = 0; i < read_sz; ++i) {
+            if(buf[i] == EOF) {
+                file_size+=i;
+                strncat(version, buf, i);
+            }
+        }
+        strncat(version, buf, read_sz);
+        file_size+=read_sz;
+    }
+
+    version[file_size-1] = '\0';
+    close(fd);
+    free(buf);
+
+    //token version string
+    char *ver_tok = version;
+    char *ker_version;
+    int tokens = 0;
+    while((ker_version = next_token(&ver_tok, " ")) != NULL){
+        if(tokens == 2) {
+            break;
+        }
+        tokens++;
+    }
+    
+    strcpy(version, ker_version);
+    
+}
+
+void get_hostname(char* procfs_loc, char* hostname)
+{
+
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/sys/kernel/hostname");
+    
+    char *buf = calloc(BUF_SZ, sizeof(char));
+    ssize_t read_sz;
+
+    int fd = open(fp, O_RDONLY);
+    int file_size = 0;
+    while((read_sz = read(fd, buf, BUF_SZ)) >0) {
+        
+        int i;
+        for(i = 0; i < read_sz; ++i) {
+            if(buf[i] == EOF) {
+                file_size+=i;
+                strncat(hostname, buf, i);
+            }
+        }
+        strncat(hostname, buf, read_sz);
+        file_size+=read_sz;
+    }
+
+    hostname[file_size-1] = '\0';
+    close(fd);
+    free(buf);
+
 }
 
 
