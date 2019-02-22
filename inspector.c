@@ -39,6 +39,8 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
 int get_task_running(char* procfs_loc);
 int is_digit(char d_name[], int len);
 void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]);
+void get_task_list(char* procfs_loc, char* process, char* pid, char* state, char* task_name, char* user, char* task);
+
 
 /* This struct is a collection of booleans that controls whether or not the
  * various sections of the output are enabled. */
@@ -196,9 +198,11 @@ int main(int argc, char *argv[])
     char fork[20];
     get_interrupts(procfs_loc, interrupts, c_switch, fork);
 
-    // int c_switch = get_c_switch(procfs_loc);
-
-    // int forks = get_forks(procfs_loc);
+    char *pid_ptr = calloc(10, sizeof(char));
+    char *state_ptr = calloc(15, sizeof(char));
+    char *task_name_ptr = calloc(50, sizeof(char));
+    char *user_ptr = calloc(20, sizeof(char));
+    char *task_ptr = calloc(5, sizeof(char));
 
     LOG("Options selected: %s%s%s%s\n",
             options.hardware ? "hardware " : "",
@@ -247,12 +251,70 @@ int main(int argc, char *argv[])
     printf("\tForks: %s\n", fork);
     printf("\n");
     printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
+    printf("------+--------------+---------------------------+-----------------+-------\n");
+
+    // DIR *directory;
+    // if ((directory = opendir(procfs_loc)) == NULL) {
+    //     perror("opendir");
+    //     return EXIT_FAILURE;
+    // }
+
+    // int test;
+    // struct dirent *entry;
+    // while ((entry = readdir(directory)) != NULL) {
+    //     if((is_digit(entry->d_name, strlen(entry->d_name)) == 1) && (entry->d_type == 4)) {
+            
+    //         entry->d_name[strlen(entry->d_name)] = '\0';
+
+    //         get_task_list(procfs_loc, entry->d_name, pid_ptr, state_ptr, task_name_ptr, 
+    //             user_ptr, task_ptr);
+
+    //         // printf("%5s | %12s | %25s | %15s | %s \n", pid_ptr, state_ptr, 
+    //             // task_name_ptr, user_ptr, task_ptr);
 
 
+
+
+    //     }
+    // }
+
+    // closedir(directory);
     return 0;
 }
 
-void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]) {
+// void get_task_list(char* procfs_loc, char* process, char* pid, char* state, 
+//     char* task_name, char* user, char* task) {
+
+
+//     char fp[255];
+//     strcpy(fp, procfs_loc);
+//     // process[strlen(process)] = '\0';
+//     // printf("process last is %s\n", process);
+//     strcat(fp, "/");
+//     strcat(fp, process);
+//     strcat(fp, "/status")
+//     // printf("location is %s\n", fp);
+//     int fd = open(fp, O_RDONLY);
+//     // printf("read is %d\n", fd);
+//     ssize_t read_sz;
+//     char buf[200];
+
+//     while((read_sz = read(fd, buf, 1)) >0) {
+
+        
+
+//     }
+//     close(fd);
+
+
+
+
+
+// }
+
+
+void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], 
+    char fork[]) {
 
     char *inter_pre = "intr";
     char *c_switch_pre = "ctxt";
