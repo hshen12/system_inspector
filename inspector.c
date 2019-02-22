@@ -40,7 +40,8 @@ int get_task_running(char* procfs_loc);
 int is_digit(char d_name[], int len);
 void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]);
 void get_task_list(char* procfs_loc, char* process, char state[], char task_name[], char user[], char task[]);
-
+void get_memo_info(char* procfs_loc, char total[], char used[]);
+void get_cpu_usage(char* procfs_loc);
 
 /* This struct is a collection of booleans that controls whether or not the
  * various sections of the output are enabled. */
@@ -69,6 +70,7 @@ void print_usage(char *argv[])
 
 int main(int argc, char *argv[])
 {
+
     /* Default location of the proc file system */
     char *procfs_loc = "/proc";
 
@@ -223,15 +225,38 @@ int main(int argc, char *argv[])
         char *load_avg_15 = calloc(10, sizeof(char));
         get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15);
 
+        char total[10];
+        char used[10];
+        get_memo_info(procfs_loc, total, used);
+        float result = ((float)(atoi(used)))/atoi(total)*100;
+        float total_float = ((float) atoi(total))/1024/1024;
+        float used_float = ((float) atoi(used))/1024/1024;
+        int num = result/5;
+        int remain = 20-num;
 
+        get_cpu_usage(procfs_loc);
 
         printf("Hardware Information\n");
         printf("------------------\n" );
         printf("CPU Model: %s\n", CPU_mode);
         printf("Processing Units: %d\n", proc_unit);
         printf("Load Average (1/5/15 min) %s %s %s\n", load_avg_1, load_avg_5, load_avg_15);
-        printf("CPU Usage:\t\n");
-        printf("Memory Usage:\t\n");
+        printf("CPU Usage:\t[\n");
+
+
+
+
+
+
+        printf("Memory Usage:\t[");
+        int i;
+        for (i = 0; i < num; i++) {
+            printf("#");
+        }
+        for(i = 0; i < remain; i++) {
+            printf("-");
+        }
+        printf("] %.1f%% (%.1f GB / %.1f GB)\n", result, used_float, total_float);
         printf("\n");
     }
 
@@ -290,6 +315,162 @@ int main(int argc, char *argv[])
         closedir(directory);
     }
     return 0;
+}
+
+void get_cpu_usage(char* procfs_loc){
+
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/stat");
+
+    int fd = open(fp, O_RDONLY);
+    ssize_t read_sz;
+    char buf[1];
+    char one_line[100];
+    int length = 0;
+
+    char one_cpu[80];
+    char two_cpu[80];
+
+    while((read_sz = read(fd, buf, 1)) >0) {
+        if(buf[0] == '\n') {
+            one_line[length] = '\0';
+
+            strcpy(one_cpu, one_line);
+            one_line[0] = '\0';
+            length = 0;
+            break;
+
+        } else {
+            one_line[length] = buf[0];
+            length++;
+        }
+    }
+    close(fd);
+
+    sleep(1);
+
+    fd = open(fp, O_RDONLY);
+
+    while((read_sz = read(fd, buf, 1)) >0) {
+
+        if(buf[0] == '\n') {
+            one_line[length] = '\0';
+            strcpy(two_cpu, one_line);
+            one_line[0] = '\0';
+            length = 0;
+            break;
+
+        } else {
+            one_line[length] = buf[0];
+            length++;
+        }
+    }
+    close(fd);
+
+    char *one_tok = one_cpu;
+    char *one_temp;
+    int one_total = 0;
+    int token = 0;
+
+    while((one_temp = next_token(&one_tok, " ")) != NULL){
+        if(token > 0){
+            printf("temp is %s ", one_temp);
+            one_total+=atoi(one_temp);
+        }
+        token++;
+        printf("total is %d\n", one_total);
+    }
+
+    printf("1 total is %d\n", one_total);
+
+
+
+
+    // return 0.000;
+
+}
+
+void get_memo_info(char* procfs_loc, char total[], char used[]){
+
+    char *total_pre = "MemTotal:";
+    char *active_pre = "Active:";
+
+    char total_line[30];
+    char active_line[30];
+
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/meminfo");
+
+    int fd = open(fp, O_RDONLY);
+    ssize_t read_sz;
+    char buf[1];
+    char one_line[100];
+    int length = 0;
+
+    while((read_sz = read(fd, buf, 1)) >0) {
+
+        if(buf[0] == '\n') {
+            one_line[length] = '\0';
+
+            if(strncmp(total_pre, one_line, strlen(total_pre)) == 0) {
+                strcpy(total_line, one_line);
+            }
+
+            if(strncmp(active_pre, one_line, strlen(active_pre)) == 0) {
+                strcpy(active_line, one_line);
+            }
+
+            one_line[0] = '\0';
+            length = 0;
+        } else {
+            one_line[length] = buf[0];
+            length++;
+        }
+    }
+    close(fd);
+
+    int i;
+    int flag = 0;
+    int index = 0;
+    for(i = 0; total_line[i] != '\0'; i++) {
+
+        if(flag == 1) {
+            total[index] = total_line[i];
+            index++;
+        } else if(total_line[i] > 47 && total_line[i] < 58) {
+            total[index] = total_line[i];
+            flag = 1;
+            index++;
+        }
+        if(total_line[i] == 32) {
+            flag = 0;
+        }
+    }
+
+    total[index] = '\0';
+    index = 0;
+    flag = 0;
+
+    for(i = 0; active_line[i] != '\0'; i++) {
+
+        if(flag == 1) {
+            used[index] = active_line[i];
+            index++;
+        } else if(active_line[i] > 47 && total_line[i] < 58) {
+            used[index] = active_line[i];
+            flag = 1;
+            index++;
+        }
+        if(active_line[i] == 32) {
+            if(index > 0) {
+                break;
+            }
+            flag = 0;
+        }
+    }
+    used[index] = '\0';
 }
 
 void get_task_list(char* procfs_loc, char* process, char state[], 
@@ -359,11 +540,7 @@ void get_task_list(char* procfs_loc, char* process, char state[],
             flag = 1;
         }
     }
-    // printf("=========\n");
-    // printf("process is %s\n", process);
-    // printf("name line is %s\n", name_line);
-    // printf("task name is %s\n", task_name);
-    // printf("=========\n");
+
     task_name[index] = '\0';
     index = 0;
     flag = 0;
@@ -382,25 +559,19 @@ void get_task_list(char* procfs_loc, char* process, char state[],
     index = 0;
     flag = 0;
 
-    // printf("thread line is %s ", thread_line);
     for(i = 0; thread_line[i] != '\0'; i++) {
-        // printf("%d ", thread_line[i]);
         if(flag == 1) {
-            // printf("%c \n", thread_line[i]);
             task[index] = thread_line[i];
             index++;
         }
         if(thread_line[i] == 9) {
-            // printf("here and thread line is %s\n", thread_line);
             flag = 1;
         }
     }
-    // printf("\n");
 
     task[index] = '\0';
     index = 0;
     flag = 0;
-    // printf("task is %s\n", task);
 
     for(i = 0; uid_line[i] != '\0'; i++) {
         if(flag == 1) {
@@ -420,7 +591,6 @@ void get_task_list(char* procfs_loc, char* process, char state[],
             break;
         }
     }
-
 }
 
 
