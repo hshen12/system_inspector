@@ -23,8 +23,8 @@
  * Logging functionality. Set DEBUG to 1 to enable logging, 0 to disable.
  */
 #define LOG(fmt, ...) \
-    do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
-            __LINE__, __func__, __VA_ARGS__); } while (0)
+do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
+    __LINE__, __func__, __VA_ARGS__); } while (0)
 
 
 /* Function prototypes */
@@ -39,7 +39,7 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
 int get_task_running(char* procfs_loc);
 int is_digit(char d_name[], int len);
 void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]);
-void get_task_list(char* procfs_loc, char* process, char* pid, char* state, char* task_name, char* user, char* task);
+void get_task_list(char* procfs_loc, char* process, char state[], char task_name[], char user[], char task[]);
 
 
 /* This struct is a collection of booleans that controls whether or not the
@@ -56,13 +56,13 @@ void print_usage(char *argv[])
     printf("Usage: %s [-ahlrst] [-p procfs_dir]\n" , argv[0]);
     printf("\n");
     printf("Options:\n"
-"    * -a              Display all (equivalent to -lrst, default)\n"
-"    * -h              Help/usage information\n"
-"    * -l              Task List\n"
-"    * -p procfs_dir   Change the expected procfs mount point (default: /proc)\n"
-"    * -r              Hardware Information\n"
-"    * -s              System Information\n"
-"    * -t              Task Information\n");
+        "    * -a              Display all (equivalent to -lrst, default)\n"
+        "    * -h              Help/usage information\n"
+        "    * -l              Task List\n"
+        "    * -p procfs_dir   Change the expected procfs mount point (default: /proc)\n"
+        "    * -r              Hardware Information\n"
+        "    * -s              System Information\n"
+        "    * -t              Task Information\n");
     printf("\n");
 }
 
@@ -83,41 +83,41 @@ int main(int argc, char *argv[])
     while ((c = getopt(argc, argv, "ahlp:rst")) != -1) {
         switch (c) {
             case 'a':
-                options = all_on;
-                break;
+            options = all_on;
+            break;
             case 'h':
-                print_usage(argv);
-                return 0;
+            print_usage(argv);
+            return 0;
             case 'l':
-                options.task_list = true;
-                break;
+            options.task_list = true;
+            break;
             case 'p':
-                procfs_loc = optarg;
-                alt_proc = true;
-                break;
+            procfs_loc = optarg;
+            alt_proc = true;
+            break;
             case 'r':
-                options.hardware = true;
-                break;
+            options.hardware = true;
+            break;
             case 's':
-                options.system = true;
-                break;
+            options.system = true;
+            break;
             case 't':
-                options.task_summary = true;
-                break;
+            options.task_summary = true;
+            break;
             case '?':
-                if (optopt == 'p') {
-                    fprintf(stderr,
-                            "Option -%c requires an argument.\n", optopt);
-                } else if (isprint(optopt)) {
-                    fprintf(stderr, "Unknown option `-%c'.\n", optopt);
-                } else {
-                    fprintf(stderr,
-                            "Unknown option character `\\x%x'.\n", optopt);
-                }
-                print_usage(argv);
-                return 1;
+            if (optopt == 'p') {
+                fprintf(stderr,
+                    "Option -%c requires an argument.\n", optopt);
+            } else if (isprint(optopt)) {
+                fprintf(stderr, "Unknown option `-%c'.\n", optopt);
+            } else {
+                fprintf(stderr,
+                    "Unknown option character `\\x%x'.\n", optopt);
+            }
+            print_usage(argv);
+            return 1;
             default:
-                abort();
+            abort();
         }
     }
 
@@ -134,183 +134,294 @@ int main(int argc, char *argv[])
         options = all_on;
     }
 
+    LOG("Options selected: %s%s%s%s\n",
+        options.hardware ? "hardware " : "",
+        options.system ? "system " : "",
+        options.task_list ? "task_list " : "",
+        options.task_summary ? "task_summary" : "");
+
     //read the given directory if provided
     //if does not exist, exit
     int procfs_fd = open(procfs_loc, O_RDONLY);
     if (procfs_fd == -1) {
         perror("open");
+        close(procfs_fd);
         return EXIT_FAILURE;
     }
-    
-    //read the hostname
-    char *hostname = calloc(40, sizeof(char));
-    get_hostname(procfs_loc, hostname);
 
-    //read the kernel version
-    char *version = calloc(1024, sizeof(char));
-    get_kernel_version(procfs_loc, version);
+    if(options.system) {
+        //read the hostname
+        char *hostname = calloc(40, sizeof(char));
+        get_hostname(procfs_loc, hostname);
 
-    char *temp = calloc(1024, sizeof(char));
-    get_uptime(procfs_loc, temp);
-    int uptime = atof(temp);
-    int uptime_temp = uptime;
+        //read the kernel version
+        char *version = calloc(1024, sizeof(char));
+        get_kernel_version(procfs_loc, version);
 
-    int year = uptime_temp/31536000;
-    if(year > 0) {
+        char *temp = calloc(1024, sizeof(char));
+        get_uptime(procfs_loc, temp);
+        int uptime = atof(temp);
+        int uptime_temp = uptime;
+
+        int year = uptime_temp/31536000;
+        if(year > 0) {
         // year+=year_temp;
-        uptime_temp-=year*31536000;
-    }
+            uptime_temp-=year*31536000;
+        }
 
-    int day = uptime_temp/86400;
-    if(day > 0){
+        int day = uptime_temp/86400;
+        if(day > 0){
         // day+=day_temp;
-        uptime_temp-=day*86400;
-    }
+            uptime_temp-=day*86400;
+        }
 
-    int hour = uptime_temp/3600;
-    if(hour > 0) {
+        int hour = uptime_temp/3600;
+        if(hour > 0) {
         // hour+=hour_temp;
-        uptime_temp-=hour*3600;
-    }
+            uptime_temp-=hour*3600;
+        }
 
-    int min = uptime_temp/60;
-    if(min > 0) {
+        int min = uptime_temp/60;
+        if(min > 0) {
         // min+=min_temp;
-        uptime_temp-=min*60;
+            uptime_temp-=min*60;
+        }
+
+        int second = uptime_temp;
+        printf("System Information\n");
+        printf("------------------\n" );
+        printf("Hostname: %s\n", hostname);
+        printf("Kernel Version: %s\n", version);
+        printf("Uptime: ");
+        if(year > 0) {
+            printf("%d years, ", year);
+        }
+        if(day > 0) {
+            printf("%d days, ", day);
+        }
+        if(hour > 0) {
+            printf("%d hours, ", hour);
+        }
+        if(min > 0) {
+            printf("%d minutes, ", min);
+        }
+        if(second > 0) {
+            printf("%d seconds", second);
+        }
+        printf("\n");
     }
 
-    int second = uptime_temp;
+    if(options.hardware) {
 
-    char *CPU_mode = calloc(50, sizeof(char));
-    get_CPU_mode(procfs_loc, CPU_mode);
-    
-    int proc_unit = get_proc_unit(procfs_loc);
-    
-    char *load_avg_1 = calloc(10, sizeof(char));
-    char *load_avg_5 = calloc(10, sizeof(char));
-    char *load_avg_15 = calloc(10, sizeof(char));
-    get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15); 
+        char *CPU_mode = calloc(50, sizeof(char));
+        get_CPU_mode(procfs_loc, CPU_mode);
 
-    int task_running = get_task_running(procfs_loc);
+        int proc_unit = get_proc_unit(procfs_loc);
 
-    char interrupts[20];
-    char c_switch[20];
-    char fork[20];
-    get_interrupts(procfs_loc, interrupts, c_switch, fork);
-
-    char *pid_ptr = calloc(10, sizeof(char));
-    char *state_ptr = calloc(15, sizeof(char));
-    char *task_name_ptr = calloc(50, sizeof(char));
-    char *user_ptr = calloc(20, sizeof(char));
-    char *task_ptr = calloc(5, sizeof(char));
-
-    LOG("Options selected: %s%s%s%s\n",
-            options.hardware ? "hardware " : "",
-            options.system ? "system " : "",
-            options.task_list ? "task_list " : "",
-            options.task_summary ? "task_summary" : "");
+        char *load_avg_1 = calloc(10, sizeof(char));
+        char *load_avg_5 = calloc(10, sizeof(char));
+        char *load_avg_15 = calloc(10, sizeof(char));
+        get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15);
 
 
-    printf("System Information\n");
-    printf("------------------\n" );
-    printf("Hostname: %s\n", hostname);
-    printf("Kernel Version: %s\n", version);
-    printf("Uptime: ");
-    if(year > 0) {
-        printf("%d years, ", year);
+
+        printf("Hardware Information\n");
+        printf("------------------\n" );
+        printf("CPU Model: %s\n", CPU_mode);
+        printf("Processing Units: %d\n", proc_unit);
+        printf("Load Average (1/5/15 min) %s %s %s\n", load_avg_1, load_avg_5, load_avg_15);
+        printf("CPU Usage:\t\n");
+        printf("Memory Usage:\t\n");
+        printf("\n");
     }
-    if(day > 0) {
-        printf("%d days, ", day);
+
+
+    if(options.task_summary) {
+
+        int task_running = get_task_running(procfs_loc);
+
+        char interrupts[20];
+        char c_switch[20];
+        char fork[20];
+        get_interrupts(procfs_loc, interrupts, c_switch, fork);
+
+        printf("Task Information\n");
+        printf("------------------\n" );
+        printf("Tasks running: %d\n", task_running);
+        printf("Since boot:\n");
+        printf("\tInterrupts: %s\n", interrupts);
+        printf("\tContext Switches: %s\n", c_switch);
+        printf("\tForks: %s\n", fork);
+        printf("\n");
     }
-    if(hour > 0) {
-        printf("%d hours, ", hour);
+
+    if(options.task_list) {
+
+        char state[15];
+        char task_name[30];
+        char user[20];
+        char task[5];
+
+        printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
+        printf("------+--------------+---------------------------+-----------------+-------\n");
+
+        DIR *directory;
+        if ((directory = opendir(procfs_loc)) == NULL) {
+            perror("opendir");
+            return EXIT_FAILURE;
+        }
+
+        struct dirent *entry;
+        while ((entry = readdir(directory)) != NULL) {
+            if((is_digit(entry->d_name, strlen(entry->d_name)) == 1) && (entry->d_type == 4)) {
+
+                entry->d_name[strlen(entry->d_name)] = '\0';
+
+                get_task_list(procfs_loc, entry->d_name, state, task_name, 
+                    user, task);
+
+                struct passwd *pwd = getpwuid(atoi(user));
+
+                printf("%5s | %12s | %25s | %15s | %s \n", entry->d_name, state, 
+                    task_name, pwd == NULL ? user:pwd->pw_name, task);
+            }
+        }
+
+        closedir(directory);
     }
-    if(min > 0) {
-        printf("%d minutes, ", min);
-    }
-    if(second > 0) {
-        printf("%d seconds", second);
-    }
-    printf("\n");
-
-    printf("Hardware Information\n");
-    printf("------------------\n" );
-    printf("CPU Model: %s\n", CPU_mode);
-    printf("Processing Units: %d\n", proc_unit);
-    printf("Load Average (1/5/15 min) %s %s %s\n", load_avg_1, load_avg_5, load_avg_15);
-    printf("CPU Usage:\t\n");
-    printf("Memory Usage:\t\n");
-    printf("\n");
-
-    printf("Task Information\n");
-    printf("------------------\n" );
-    printf("Tasks running: %d\n", task_running);
-    printf("Since boot:\n");
-    printf("\tInterrupts: %s\n", interrupts);
-    printf("\tContext Switches: %s\n", c_switch);
-    printf("\tForks: %s\n", fork);
-    printf("\n");
-    printf("%5s | %12s | %25s | %15s | %s \n", "PID", "State", "Task Name", "User", "Tasks");
-    printf("------+--------------+---------------------------+-----------------+-------\n");
-
-    // DIR *directory;
-    // if ((directory = opendir(procfs_loc)) == NULL) {
-    //     perror("opendir");
-    //     return EXIT_FAILURE;
-    // }
-
-    // int test;
-    // struct dirent *entry;
-    // while ((entry = readdir(directory)) != NULL) {
-    //     if((is_digit(entry->d_name, strlen(entry->d_name)) == 1) && (entry->d_type == 4)) {
-            
-    //         entry->d_name[strlen(entry->d_name)] = '\0';
-
-    //         get_task_list(procfs_loc, entry->d_name, pid_ptr, state_ptr, task_name_ptr, 
-    //             user_ptr, task_ptr);
-
-    //         // printf("%5s | %12s | %25s | %15s | %s \n", pid_ptr, state_ptr, 
-    //             // task_name_ptr, user_ptr, task_ptr);
-
-
-
-
-    //     }
-    // }
-
-    // closedir(directory);
     return 0;
 }
 
-// void get_task_list(char* procfs_loc, char* process, char* pid, char* state, 
-//     char* task_name, char* user, char* task) {
+void get_task_list(char* procfs_loc, char* process, char state[], 
+    char task_name[], char user[], char task[]) {
 
+    char *thread_pre = "Threads:";
+    char *state_pre = "State:";
+    char *uid_pre = "Uid:";
+    char *name_pre = "Name:";
 
-//     char fp[255];
-//     strcpy(fp, procfs_loc);
-//     // process[strlen(process)] = '\0';
-//     // printf("process last is %s\n", process);
-//     strcat(fp, "/");
-//     strcat(fp, process);
-//     strcat(fp, "/status")
-//     // printf("location is %s\n", fp);
-//     int fd = open(fp, O_RDONLY);
-//     // printf("read is %d\n", fd);
-//     ssize_t read_sz;
-//     char buf[200];
+    char state_line[30];
+    char uid_line[30];
+    char thread_line[15];
+    char name_line[99];
 
-//     while((read_sz = read(fd, buf, 1)) >0) {
+    char fp[255];
+    strcpy(fp, procfs_loc);
+    strcat(fp, "/");
+    strcat(fp, process);
+    strcat(fp, "/status");
+    int fd = open(fp, O_RDONLY);
+    ssize_t read_sz;
+    char buf[1];
+    char one_line[100];
+    int length = 0;
 
-        
+    while((read_sz = read(fd, buf, 1)) >0) {
+        if(buf[0] == '\n') {
+            one_line[length] = '\0';
 
-//     }
-//     close(fd);
+            if(strncmp(thread_pre, one_line, strlen(thread_pre)) == 0) {
+                strcpy(thread_line, one_line);
+                break;
+            }
 
+            if(strncmp(name_pre, one_line, strlen(name_pre)) == 0) {
+                strcpy(name_line, one_line);
+            }
 
+            if(strncmp(state_pre, one_line, strlen(state_pre)) == 0) {
+                strcpy(state_line, one_line);
+            }
 
+            if(strncmp(uid_pre, one_line, strlen(uid_pre)) == 0) {
+                strcpy(uid_line, one_line);
+            }
 
+            one_line[0] = '\0';
+            length = 0;
+        } else {
+            one_line[length] = buf[0];
+            length++;
+        }
 
-// }
+    }
+    close(fd);
+
+    int i;
+    int flag = 0;
+    int index = 0;
+    for(i = 0; i < 31; i++) {
+        if(flag == 1) {
+            task_name[index] = name_line[i];
+            index++;
+        }
+        if(name_line[i] == 9) {
+            flag = 1;
+        }
+    }
+    // printf("=========\n");
+    // printf("process is %s\n", process);
+    // printf("name line is %s\n", name_line);
+    // printf("task name is %s\n", task_name);
+    // printf("=========\n");
+    task_name[index] = '\0';
+    index = 0;
+    flag = 0;
+
+    for(i = 0; state_line[i] != 41; i++) {
+        if(flag == 1) {
+            state[index] = state_line[i];
+            index++;
+        }
+        if(state_line[i] == 40) {
+            flag = 1;
+        }
+    }
+
+    state[index] = '\0';
+    index = 0;
+    flag = 0;
+
+    // printf("thread line is %s ", thread_line);
+    for(i = 0; thread_line[i] != '\0'; i++) {
+        // printf("%d ", thread_line[i]);
+        if(flag == 1) {
+            // printf("%c \n", thread_line[i]);
+            task[index] = thread_line[i];
+            index++;
+        }
+        if(thread_line[i] == 9) {
+            // printf("here and thread line is %s\n", thread_line);
+            flag = 1;
+        }
+    }
+    // printf("\n");
+
+    task[index] = '\0';
+    index = 0;
+    flag = 0;
+    // printf("task is %s\n", task);
+
+    for(i = 0; uid_line[i] != '\0'; i++) {
+        if(flag == 1) {
+            user[index] = uid_line[i];
+            index++;
+        }
+        if(uid_line[i] == 9) {
+            flag = 1;
+        }
+    }
+
+    user[index] = '\0';
+
+    for(i = 0; user[i] != 9; i++) {
+        if(user[i+1] == 9){
+            user[i+1] = '\0';
+            break;
+        }
+    }
+
+}
 
 
 void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], 
@@ -365,7 +476,7 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
     for(i = 0; i < 12000; i++) {
         if(inte_line[i] > 47 && inte_line[i] < 58) {
             //is number
-            
+
             interrupts[inter_index] = inte_line[i];
             inter_index++;
         }
@@ -378,7 +489,7 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
     int index;
     for(i = 0; i < 50; i++) {
         if(c_switch_line[i] > 47 && c_switch_line[i] < 58) {
-            
+
             c_switch[index] = c_switch_line[i];
             index++;
         }
@@ -391,11 +502,11 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
     index = 0;
     for(i = 0; i < 50; i++) {
         if(fork_line[i] > 47 && fork_line[i] < 58) {
-            
+
             fork[index] = fork_line[i];
             index++;
         }
-         if(fork_line[i] == 0) {
+        if(fork_line[i] == 0) {
             fork[index] = '\0';
             break;
         }
@@ -447,7 +558,7 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
     int fd = open(fp, O_RDONLY);
 
     while((read_sz = read(fd, buf, 1)) >0) {
-            
+
         one_line[length] = buf[0];
         length++;
         
@@ -629,7 +740,7 @@ void get_kernel_version(char* procfs_loc, char* version)
     int fd = open(fp, O_RDONLY);
     int file_size = 0;
     while((read_sz = read(fd, buf, BUF_SZ)) >0) {
-        
+
         int i;
         for(i = 0; i < read_sz; ++i) {
             if(buf[i] == EOF) {
@@ -673,7 +784,7 @@ void get_hostname(char* procfs_loc, char* hostname)
     int fd = open(fp, O_RDONLY);
     int file_size = 0;
     while((read_sz = read(fd, buf, BUF_SZ)) >0) {
-        
+
         int i;
         for(i = 0; i < read_sz; ++i) {
             if(buf[i] == EOF) {
