@@ -155,17 +155,18 @@ int main(int argc, char *argv[])
         //read the hostname
         char *hostname = calloc(40, sizeof(char));
         get_hostname(procfs_loc, hostname);
-        // printf("before version\n");
+
         //read the kernel version
         char *version = calloc(1024, sizeof(char));
-        // printf("before version\n");
         get_kernel_version(procfs_loc, version);
-        // printf("after ker_version\n");
+
+        //read uptime
         char *temp = calloc(1024, sizeof(char));
         get_uptime(procfs_loc, temp);
         int uptime = atof(temp);
         int uptime_temp = uptime;
 
+        //calculate year day hour min sec
         int year = uptime_temp/31536000;
         if(year > 0) {
             uptime_temp-=year*31536000;
@@ -185,7 +186,7 @@ int main(int argc, char *argv[])
         if(min > 0) {
             uptime_temp-=min*60;
         }
-        printf("here\n");
+
         int second = uptime_temp;
         printf("System Information\n");
         printf("------------------\n" );
@@ -208,7 +209,7 @@ int main(int argc, char *argv[])
             printf("%d seconds", second);
         }
         printf("\n");
-        printf("here\n");
+
         free(hostname);
         free(version);
         free(temp);
@@ -216,22 +217,25 @@ int main(int argc, char *argv[])
 
     if(options.hardware) {
 
+        //read cpu mode
         char *CPU_mode = calloc(50, sizeof(char));
         get_CPU_mode(procfs_loc, CPU_mode);
-        printf("cpu unit\n");
 
+        //read process unit
         int proc_unit = get_proc_unit(procfs_loc);
-        printf("proc unit\n");
 
+        //read load avg
         char *load_avg_1 = calloc(10, sizeof(char));
         char *load_avg_5 = calloc(10, sizeof(char));
         char *load_avg_15 = calloc(10, sizeof(char));
         get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15);
-        printf("load avg\n");
+
+        //read meminfo
         char total[10];
         char used[10];
         get_memo_info(procfs_loc, total, used);
-        printf("meminfo\n");
+
+        //calculate memo
         float result = ((float)(atoi(used)))/atoi(total)*100;
         float total_float = ((float) atoi(total))/1024/1024;
         float used_float = ((float) atoi(used))/1024/1024;
@@ -239,6 +243,7 @@ int main(int argc, char *argv[])
         int remain = 20-num;
         int i;
 
+        //read cpu usage
         float usage = get_cpu_usage(procfs_loc)*100;
         int usage_num = usage/5;
         int usage_remain = 20-usage_num;
@@ -278,8 +283,10 @@ int main(int argc, char *argv[])
 
     if(options.task_summary) {
 
+        //read number of task
         int task_running = get_task_running(procfs_loc);
 
+        //read task info
         char interrupts[20];
         char c_switch[20];
         char fork[20];
@@ -297,6 +304,7 @@ int main(int argc, char *argv[])
 
     if(options.task_list) {
 
+        //read task list
         char state[15];
         char task_name[30];
         char user[20];
@@ -321,10 +329,10 @@ int main(int argc, char *argv[])
                 get_task_list(procfs_loc, entry->d_name, state, task_name, 
                     user, task);
 
-                // struct passwd *pwd = getpwuid(atoi(user));
+                struct passwd *pwd = getpwuid(atoi(user));
 
-                // printf("%5s | %12s | %25s | %15s | %s \n", entry->d_name, state, 
-                    // task_name, pwd == NULL ? user:pwd->pw_name, task);
+                printf("%5s | %12s | %25s | %15s | %s \n", entry->d_name, state, 
+                    task_name, pwd == NULL ? user:pwd->pw_name, task);
             }
         }
 
@@ -332,6 +340,7 @@ int main(int argc, char *argv[])
     }
     return 0;
 }
+
 
 float get_cpu_usage(char* procfs_loc){
 
@@ -348,8 +357,10 @@ float get_cpu_usage(char* procfs_loc){
     char one_cpu[80];
     char two_cpu[80];
 
+    //read idel 1 and total 1
     while((read_sz = read(fd, buf, 1)) >0) {
         if(buf[0] == '\n') {
+            //if readed one line
             one_line[length] = '\0';
 
             strcpy(one_cpu, one_line);
@@ -358,6 +369,7 @@ float get_cpu_usage(char* procfs_loc){
             break;
 
         } else {
+            //in the middle of the line
             one_line[length] = buf[0];
             length++;
         }
@@ -366,11 +378,13 @@ float get_cpu_usage(char* procfs_loc){
 
     sleep(1);
 
+    //read idel 2 and total 2
     fd = open(fp, O_RDONLY);
 
     while((read_sz = read(fd, buf, 1)) >0) {
 
         if(buf[0] == '\n') {
+            //if read one line
             one_line[length] = '\0';
             strcpy(two_cpu, one_line);
             one_line[0] = '\0';
@@ -378,6 +392,7 @@ float get_cpu_usage(char* procfs_loc){
             break;
 
         } else {
+            //in the middle of the line
             one_line[length] = buf[0];
             length++;
         }
@@ -390,6 +405,7 @@ float get_cpu_usage(char* procfs_loc){
     int token = 0;
     long idel1;
 
+    //token string
     while((one_temp = next_token(&one_tok, " ")) != NULL){
         if(token == 4) {
             idel1 = atol(one_temp);
@@ -416,11 +432,7 @@ float get_cpu_usage(char* procfs_loc){
         token++;
     }
 
-    // free(two_tok);
-    // free(two_temp);
-    // free(one_tok);
-    // free(one_temp);
-
+    //calculate usage
     float usage = 1-(float)(idel2-idel1)/(two_total-one_total);
     if (isnan(usage)) {
         return 0.0;
@@ -451,27 +463,30 @@ void get_memo_info(char* procfs_loc, char total[], char used[]){
     while((read_sz = read(fd, buf, 1)) >0) {
 
         if(buf[0] == '\n') {
+            //read one line
             one_line[length] = '\0';
 
             if(strncmp(total_pre, one_line, strlen(total_pre)) == 0) {
+                //if the line is start with "MemTotal:"
                 strcpy(total_line, one_line);
             }
 
             if(strncmp(active_pre, one_line, strlen(active_pre)) == 0) {
+                //if the line is start with "Active:"
                 strcpy(active_line, one_line);
             }
 
             one_line[0] = '\0';
             length = 0;
         } else {
+            //in the middle of the line
             one_line[length] = buf[0];
             length++;
         }
     }
     close(fd);
-    // free(total_pre);
-    // free(active_pre);
 
+    //token string
     int i;
     int flag = 0;
     int index = 0;
@@ -543,7 +558,9 @@ void get_task_list(char* procfs_loc, char* process, char state[],
             one_line[length] = '\0';
 
             if(strncmp(thread_pre, one_line, strlen(thread_pre)) == 0) {
+                //if the line is start with "Threads:"
                 strcpy(thread_line, one_line);
+                //no information needed after this line
                 break;
             }
 
@@ -562,17 +579,15 @@ void get_task_list(char* procfs_loc, char* process, char state[],
             one_line[0] = '\0';
             length = 0;
         } else {
+            //in the middle of the line
             one_line[length] = buf[0];
             length++;
         }
 
     }
     close(fd);
-    // free(thread_pre);
-    // free(state_pre);
-    // free(uid_pre);
-    // free(name_pre);
 
+    //token string
     int i;
     int flag = 0;
     int index = 0;
@@ -686,10 +701,8 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
 
     }
     close(fd);
-    // free(inter_pre);
-    // free(c_switch_pre);
-    // free(fork_pre);
 
+    //token string
     int i, inter_index;
     for(i = 0; i < 12000; i++) {
         if(inte_line[i] > 47 && inte_line[i] < 58) {
@@ -699,6 +712,7 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
             inter_index++;
         }
         if(inte_line[i] == 32 && inte_line[i-1] != 114) {
+            //if this index is space and next is 'r'
             interrupts[inter_index] = '\0';
             break;
         }
@@ -712,6 +726,7 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
             index++;
         }
         if(c_switch_line[i] == 0) {
+            //if null terminater
             c_switch[index] = '\0';
             break;
         }
@@ -732,6 +747,8 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
 }
 
 int is_digit(char d_name[], int len) {
+
+    //if the string is all digit
     int i;
     for(i = 0; i < len; i++) {
         if(d_name[i]<48 || d_name[i]>57) {
@@ -744,6 +761,7 @@ int is_digit(char d_name[], int len) {
 
 int get_task_running(char* procfs_loc) {
 
+    //read all file and directory
     DIR *directory;
     if ((directory = opendir(procfs_loc)) == NULL) {
         perror("opendir");
@@ -753,6 +771,7 @@ int get_task_running(char* procfs_loc) {
     int result = 0;
     struct dirent *entry;
     while ((entry = readdir(directory)) != NULL) {
+        //if it is a file and not a directory
         if((is_digit(entry->d_name, strlen(entry->d_name)) == 1) && (entry->d_type == 4)) {
             result++;
         }
@@ -785,6 +804,7 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
     one_line[length-1] = '\0';
     close(fd);
 
+    //token string 
     char *load_tok = one_line;
     char *temp;
     int tokens = 0;
@@ -804,8 +824,6 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
         tokens++;
     }
 
-    // free(load_tok);
-    // free(temp);
 }
 
 int get_proc_unit(char* procfs_loc) {
@@ -835,7 +853,6 @@ int get_proc_unit(char* procfs_loc) {
 
             //stop reading when find "intr"
             if(strncmp(stop, one_line, strlen(stop)) == 0) {
-                // printf("before break: %s\n", one_line);
                 break;
             }
 
@@ -843,6 +860,7 @@ int get_proc_unit(char* procfs_loc) {
             length = 0;
         } else {
             if(strlen(one_line) >= 127) {
+                //previent too many unnessary '0'
                 break;
             }
 
@@ -852,8 +870,6 @@ int get_proc_unit(char* procfs_loc) {
         }
     }
     close(fd);
-    // free(pre);
-    // free(stop);
     return result-1;
 }
 
@@ -893,8 +909,8 @@ void get_CPU_mode(char* procfs_loc, char* CPU_mode){
     }
 
     close(fd);
-    // free(pre);
     
+    //token string
     char *cpu_tok = CPU_mode;
     char *cpu_mode;
     int tokens = 0;
@@ -905,9 +921,6 @@ void get_CPU_mode(char* procfs_loc, char* CPU_mode){
         tokens++;
     }
     strcpy(CPU_mode, cpu_mode+1);
-    // free(cpu_tok);
-    // free(cpu_mode);
-
 }
 
 
@@ -929,6 +942,7 @@ void get_uptime(char* procfs_loc, char* uptime)
         int i;
         for(i = 0; i < read_sz; ++i) {
             if(buf[i] == EOF) {
+                //if read to the end of the file
                 file_size+=i;
                 strncat(uptime, buf, i);
             }
@@ -941,6 +955,7 @@ void get_uptime(char* procfs_loc, char* uptime)
     close(fd);
     free(buf);
 
+    //token string
     char *up_tok = uptime;
     char *up_time;
     int tokens = 0;
@@ -952,8 +967,6 @@ void get_uptime(char* procfs_loc, char* uptime)
     }
     
     strcpy(uptime, up_time);
-    // free(up_tok);
-    // free(up_time);
 }
 
 
@@ -984,7 +997,7 @@ void get_kernel_version(char* procfs_loc, char* version)
     version[file_size-1] = '\0';
     close(fd);
     free(buf);
-    // printf("1!!!!!!\n");
+
     //token version string
     char *ver_tok = version;
     char *ker_version;
@@ -995,24 +1008,17 @@ void get_kernel_version(char* procfs_loc, char* version)
         }
         tokens++;
     }
-    // printf("1!!!!!!\n");
     strcpy(version, ker_version);
-    // printf("1!!!!!!\n");
-    // free(ver_tok);
-    // free(ker_version);
-    // printf("1!!!!!!\n");
 }
 
 void get_hostname(char* procfs_loc, char* hostname)
 {
-    printf("here\n");
     char fp[255];
     strcpy(fp, procfs_loc);
     strcat(fp, "/sys/kernel/hostname");
     
     char *buf = calloc(BUF_SZ, sizeof(char));
     ssize_t read_sz;
-    printf("here\n");
     int fd = open(fp, O_RDONLY);
     int file_size = 0;
     while((read_sz = read(fd, buf, BUF_SZ)) >0) {
@@ -1027,11 +1033,10 @@ void get_hostname(char* procfs_loc, char* hostname)
         strncat(hostname, buf, read_sz);
         file_size+=read_sz;
     }
-    printf("here\n");
+
     hostname[file_size-1] = '\0';
     close(fd);
     free(buf);
-
 }
 
 
