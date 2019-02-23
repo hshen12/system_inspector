@@ -24,6 +24,8 @@ make test run=4
 make test run='4 8 12'
 ```
 
+
+
 the code passed all the test except memory leak. our guess is the getpwuid caused. 
 
 the project is reading the file from given directory and tokenizer the string. 
