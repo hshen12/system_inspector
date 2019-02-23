@@ -41,7 +41,7 @@ int is_digit(char d_name[], int len);
 void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[], char fork[]);
 void get_task_list(char* procfs_loc, char* process, char state[], char task_name[], char user[], char task[]);
 void get_memo_info(char* procfs_loc, char total[], char used[]);
-void get_cpu_usage(char* procfs_loc);
+float get_cpu_usage(char* procfs_loc);
 
 /* This struct is a collection of booleans that controls whether or not the
  * various sections of the output are enabled. */
@@ -155,11 +155,12 @@ int main(int argc, char *argv[])
         //read the hostname
         char *hostname = calloc(40, sizeof(char));
         get_hostname(procfs_loc, hostname);
-
+        // printf("before version\n");
         //read the kernel version
         char *version = calloc(1024, sizeof(char));
+        // printf("before version\n");
         get_kernel_version(procfs_loc, version);
-
+        // printf("after ker_version\n");
         char *temp = calloc(1024, sizeof(char));
         get_uptime(procfs_loc, temp);
         int uptime = atof(temp);
@@ -167,28 +168,24 @@ int main(int argc, char *argv[])
 
         int year = uptime_temp/31536000;
         if(year > 0) {
-        // year+=year_temp;
             uptime_temp-=year*31536000;
         }
 
         int day = uptime_temp/86400;
         if(day > 0){
-        // day+=day_temp;
             uptime_temp-=day*86400;
         }
 
         int hour = uptime_temp/3600;
         if(hour > 0) {
-        // hour+=hour_temp;
             uptime_temp-=hour*3600;
         }
 
         int min = uptime_temp/60;
         if(min > 0) {
-        // min+=min_temp;
             uptime_temp-=min*60;
         }
-
+        printf("here\n");
         int second = uptime_temp;
         printf("System Information\n");
         printf("------------------\n" );
@@ -211,45 +208,58 @@ int main(int argc, char *argv[])
             printf("%d seconds", second);
         }
         printf("\n");
+        printf("here\n");
+        free(hostname);
+        free(version);
+        free(temp);
     }
 
     if(options.hardware) {
 
         char *CPU_mode = calloc(50, sizeof(char));
         get_CPU_mode(procfs_loc, CPU_mode);
+        printf("cpu unit\n");
 
         int proc_unit = get_proc_unit(procfs_loc);
+        printf("proc unit\n");
 
         char *load_avg_1 = calloc(10, sizeof(char));
         char *load_avg_5 = calloc(10, sizeof(char));
         char *load_avg_15 = calloc(10, sizeof(char));
         get_load_avg(procfs_loc, load_avg_1, load_avg_5, load_avg_15);
-
+        printf("load avg\n");
         char total[10];
         char used[10];
         get_memo_info(procfs_loc, total, used);
+        printf("meminfo\n");
         float result = ((float)(atoi(used)))/atoi(total)*100;
         float total_float = ((float) atoi(total))/1024/1024;
         float used_float = ((float) atoi(used))/1024/1024;
         int num = result/5;
         int remain = 20-num;
+        int i;
 
-        get_cpu_usage(procfs_loc);
+        float usage = get_cpu_usage(procfs_loc)*100;
+        int usage_num = usage/5;
+        int usage_remain = 20-usage_num;
 
         printf("Hardware Information\n");
         printf("------------------\n" );
         printf("CPU Model: %s\n", CPU_mode);
         printf("Processing Units: %d\n", proc_unit);
         printf("Load Average (1/5/15 min) %s %s %s\n", load_avg_1, load_avg_5, load_avg_15);
-        printf("CPU Usage:\t[\n");
+        printf("CPU Usage:\t[");
 
-
-
-
-
+        for(i = 0; i < usage_num; i++) {
+            printf("#");
+        }
+        for(i = 0; i < usage_remain; i++) {
+            printf("-");
+        }
+        printf("] %.1f%%\n", usage);
 
         printf("Memory Usage:\t[");
-        int i;
+        
         for (i = 0; i < num; i++) {
             printf("#");
         }
@@ -258,6 +268,11 @@ int main(int argc, char *argv[])
         }
         printf("] %.1f%% (%.1f GB / %.1f GB)\n", result, used_float, total_float);
         printf("\n");
+
+        free(CPU_mode);
+        free(load_avg_1);
+        free(load_avg_5);
+        free(load_avg_15);
     }
 
 
@@ -293,6 +308,7 @@ int main(int argc, char *argv[])
         DIR *directory;
         if ((directory = opendir(procfs_loc)) == NULL) {
             perror("opendir");
+            closedir(directory);
             return EXIT_FAILURE;
         }
 
@@ -305,10 +321,10 @@ int main(int argc, char *argv[])
                 get_task_list(procfs_loc, entry->d_name, state, task_name, 
                     user, task);
 
-                struct passwd *pwd = getpwuid(atoi(user));
+                // struct passwd *pwd = getpwuid(atoi(user));
 
-                printf("%5s | %12s | %25s | %15s | %s \n", entry->d_name, state, 
-                    task_name, pwd == NULL ? user:pwd->pw_name, task);
+                // printf("%5s | %12s | %25s | %15s | %s \n", entry->d_name, state, 
+                    // task_name, pwd == NULL ? user:pwd->pw_name, task);
             }
         }
 
@@ -317,7 +333,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void get_cpu_usage(char* procfs_loc){
+float get_cpu_usage(char* procfs_loc){
 
     char fp[255];
     strcpy(fp, procfs_loc);
@@ -370,24 +386,47 @@ void get_cpu_usage(char* procfs_loc){
 
     char *one_tok = one_cpu;
     char *one_temp;
-    int one_total = 0;
+    long one_total = 0;
     int token = 0;
+    long idel1;
 
     while((one_temp = next_token(&one_tok, " ")) != NULL){
+        if(token == 4) {
+            idel1 = atol(one_temp);
+        }
         if(token > 0){
-            printf("temp is %s ", one_temp);
-            one_total+=atoi(one_temp);
+            one_total+=atol(one_temp);
         }
         token++;
-        printf("total is %d\n", one_total);
     }
 
-    printf("1 total is %d\n", one_total);
+    long two_total = 0;
+    long idel2;
+    char *two_tok = two_cpu;
+    char *two_temp;
+    token = 0;
 
+    while((two_temp = next_token(&two_tok, " ")) != NULL){
+        if(token == 4) {
+            idel2 = atol(two_temp);
+        }
+        if(token > 0){
+            two_total+=atol(two_temp);
+        }
+        token++;
+    }
 
+    // free(two_tok);
+    // free(two_temp);
+    // free(one_tok);
+    // free(one_temp);
 
-
-    // return 0.000;
+    float usage = 1-(float)(idel2-idel1)/(two_total-one_total);
+    if (isnan(usage)) {
+        return 0.0;
+    } else {
+        return usage;
+    }
 
 }
 
@@ -430,6 +469,8 @@ void get_memo_info(char* procfs_loc, char total[], char used[]){
         }
     }
     close(fd);
+    // free(total_pre);
+    // free(active_pre);
 
     int i;
     int flag = 0;
@@ -527,6 +568,10 @@ void get_task_list(char* procfs_loc, char* process, char state[],
 
     }
     close(fd);
+    // free(thread_pre);
+    // free(state_pre);
+    // free(uid_pre);
+    // free(name_pre);
 
     int i;
     int flag = 0;
@@ -641,6 +686,9 @@ void get_interrupts(char* procfs_loc, char interrupts[], char c_switch[],
 
     }
     close(fd);
+    // free(inter_pre);
+    // free(c_switch_pre);
+    // free(fork_pre);
 
     int i, inter_index;
     for(i = 0; i < 12000; i++) {
@@ -699,6 +747,7 @@ int get_task_running(char* procfs_loc) {
     DIR *directory;
     if ((directory = opendir(procfs_loc)) == NULL) {
         perror("opendir");
+        closedir(directory);
         return 1;
     }
     int result = 0;
@@ -754,6 +803,9 @@ void get_load_avg(char* procfs_loc, char* load_avg_1, char* load_avg_5, char* lo
         }
         tokens++;
     }
+
+    // free(load_tok);
+    // free(temp);
 }
 
 int get_proc_unit(char* procfs_loc) {
@@ -783,7 +835,7 @@ int get_proc_unit(char* procfs_loc) {
 
             //stop reading when find "intr"
             if(strncmp(stop, one_line, strlen(stop)) == 0) {
-                printf("before break: %s\n", one_line);
+                // printf("before break: %s\n", one_line);
                 break;
             }
 
@@ -800,6 +852,8 @@ int get_proc_unit(char* procfs_loc) {
         }
     }
     close(fd);
+    // free(pre);
+    // free(stop);
     return result-1;
 }
 
@@ -839,6 +893,7 @@ void get_CPU_mode(char* procfs_loc, char* CPU_mode){
     }
 
     close(fd);
+    // free(pre);
     
     char *cpu_tok = CPU_mode;
     char *cpu_mode;
@@ -850,6 +905,8 @@ void get_CPU_mode(char* procfs_loc, char* CPU_mode){
         tokens++;
     }
     strcpy(CPU_mode, cpu_mode+1);
+    // free(cpu_tok);
+    // free(cpu_mode);
 
 }
 
@@ -895,6 +952,8 @@ void get_uptime(char* procfs_loc, char* uptime)
     }
     
     strcpy(uptime, up_time);
+    // free(up_tok);
+    // free(up_time);
 }
 
 
@@ -925,7 +984,7 @@ void get_kernel_version(char* procfs_loc, char* version)
     version[file_size-1] = '\0';
     close(fd);
     free(buf);
-
+    // printf("1!!!!!!\n");
     //token version string
     char *ver_tok = version;
     char *ker_version;
@@ -936,21 +995,24 @@ void get_kernel_version(char* procfs_loc, char* version)
         }
         tokens++;
     }
-    
+    // printf("1!!!!!!\n");
     strcpy(version, ker_version);
-    
+    // printf("1!!!!!!\n");
+    // free(ver_tok);
+    // free(ker_version);
+    // printf("1!!!!!!\n");
 }
 
 void get_hostname(char* procfs_loc, char* hostname)
 {
-
+    printf("here\n");
     char fp[255];
     strcpy(fp, procfs_loc);
     strcat(fp, "/sys/kernel/hostname");
     
     char *buf = calloc(BUF_SZ, sizeof(char));
     ssize_t read_sz;
-
+    printf("here\n");
     int fd = open(fp, O_RDONLY);
     int file_size = 0;
     while((read_sz = read(fd, buf, BUF_SZ)) >0) {
@@ -965,7 +1027,7 @@ void get_hostname(char* procfs_loc, char* hostname)
         strncat(hostname, buf, read_sz);
         file_size+=read_sz;
     }
-
+    printf("here\n");
     hostname[file_size-1] = '\0';
     close(fd);
     free(buf);
