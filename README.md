@@ -23,3 +23,14 @@ make test run=4
 # Run a few specific test cases (4, 8, and 12 in this case):
 make test run='4 8 12'
 ```
+
+the code passed all the test except memory leak. our guess is the getpwuid caused. 
+
+the project is reading the file from given directory and tokenizer the string. 
+usage:  -a              display all
+        -h              help
+        -l              task list
+        -p procfs_dir   change default directory
+        -r              hardware info
+        -s              system info
+        -t              task info
